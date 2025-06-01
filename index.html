@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Маршрут электробусов — Ульяновск</title>
+  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #121212; color: white; font-family: sans-serif; }
+    #map { width: calc(100% - 270px); height: 100vh; float: left; }
+    #sidebar {
+      float: right;
+      width: 270px;
+      height: 100vh;
+      background: #1e1e1e;
+      padding: 16px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    .stop-item { margin: 6px 0; cursor: pointer; }
+    .stop-item:hover { text-decoration: underline; }
+    h2 { margin-top: 0; font-size: 18px; }
+    header {
+      position: absolute; top: 0; left: 0; width: 100%; height: 50px;
+      background: #222; color: white; display: flex; align-items: center;
+      padding-left: 20px; font-size: 18px; z-index: 1000;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .header-buttons {
+      margin-left: auto;
+      margin-right: 20px;
+    }
+    .header-buttons button {
+      margin-left: 10px;
+      background-color: #333;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .header-buttons button:hover {
+      background-color: #444;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>Маршрут электробусов в г. Ульяновск</div>
+    <div class="header-buttons">
+      <button onclick="startAnimation()">Пуск маршрута</button>
+    </div>
+  </header>
+  <div id="map"></div>
+  <div id="sidebar">
+    <h2>Остановки маршрута</h2>
+    <div id="stopList"></div>
+  </div>
+
+  <script>
+    let map, placemarks = [], routeLine;
+    let busMarker, currentStep = 0, animationInterval;
+
+    const stops = [
+      { name: "Ленинский мемориал", coords: [54.320368, 48.404611] },
+      { name: "Театр имени Гончарова", coords: [54.316207, 48.401722] },
+      { name: "Музей имени Гончарова", coords: [54.314793, 48.396635] },
+      { name: "Церковь святой Марии", coords: [54.313171, 48.387474] },
+      { name: "Дом-музей Ленина", coords: [54.312669, 48.381626] },
+      { name: "Спасо-Вознесенский собор", coords: [54.307532, 48.378817] },
+      { name: "Обелиск 30-летия Великой Победы", coords: [54.307836, 48.393994] }
+    ];
+
+    const routePoints = [
+      stops[0].coords,
+      stops[1].coords,
+      [54.315426, 48.401188],
+      [54.315086, 48.398840],
+      stops[2].coords,
+      [54.314197, 48.393117],
+      [54.313575, 48.389708],
+      stops[3].coords,
+      stops[4].coords,
+      [54.312413, 48.378525],
+      [54.310547, 48.378614],
+      stops[5].coords,
+      [54.306737, 48.378863],
+      [54.307082, 48.383145],
+      [54.307503, 48.388869],
+      stops[6].coords,
+      [54.307994, 48.395761],
+      [54.308348, 48.396526],
+      [54.308689, 48.396693],
+      [54.311509, 48.396328],
+      [54.314690, 48.395922],
+      stops[2].coords, // музей повторно
+      [54.315086, 48.398840],
+      [54.315426, 48.401188],
+      stops[1].coords, // театр повторно
+      stops[0].coords  // мемориал повторно
+    ];
+
+    ymaps.ready(init);
+
+    function init() {
+      map = new ymaps.Map("map", {
+        center: [54.312294, 48.392334],
+        zoom: 16,
+        controls: ['zoomControl']
+      });
+
+      stops.forEach((stop, index) => {
+        const placemark = new ymaps.Placemark(stop.coords, {
+          balloonContent: stop.name,
+          iconCaption: `${index + 1}. ${stop.name}`
+        }, {
+          iconLayout: 'default#imageWithContent',
+          iconImageHref: './bus-icon.png',
+          iconImageSize: [30, 30],
+          iconImageOffset: [-15, -30],
+          iconContentOffset: [0, -35]
+        });
+        map.geoObjects.add(placemark);
+        placemarks.push(placemark);
+      });
+
+      drawRoute();
+      updateStopList();
+    }
+
+    function drawRoute() {
+      if (routeLine) map.geoObjects.remove(routeLine);
+      routeLine = new ymaps.Polyline(routePoints, {}, {
+        strokeColor: "#ff2400",
+        strokeWidth: 7,
+        strokeOpacity: 0.8
+      });
+      map.geoObjects.add(routeLine);
+    }
+
+    function updateStopList() {
+      const list = document.getElementById("stopList");
+      list.innerHTML = '';
+      stops.forEach((s, i) => {
+        const div = document.createElement("div");
+        div.className = "stop-item";
+        div.textContent = `${i + 1}. ${s.name}`;
+        div.onclick = () => map.setCenter(s.coords, 18);
+        list.appendChild(div);
+      });
+    }
+
+    function startAnimation() {
+      if (busMarker) map.geoObjects.remove(busMarker);
+      if (animationInterval) clearInterval(animationInterval);
+
+      currentStep = 0;
+      busMarker = new ymaps.Placemark(routePoints[0], {}, {
+        iconLayout: 'default#image',
+        iconImageHref: './thebus.png',
+        iconImageSize: [30, 30],
+        iconImageOffset: [-15, -30]
+      });
+      map.geoObjects.add(busMarker);
+
+      animationInterval = setInterval(() => {
+        if (currentStep >= routePoints.length) {
+          clearInterval(animationInterval);
+          return;
+        }
+        busMarker.geometry.setCoordinates(routePoints[currentStep]);
+        currentStep++;
+      }, 700);
+    }
+  </script>
+</body>
+</html>
